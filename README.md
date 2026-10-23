@@ -14,7 +14,7 @@
 | --- | --- |
 | `public/index.html` | 画面（出題者・回答者とも同じページ） |
 | `src/index.js` | Cloudflare Worker。`/ws/<ルーム番号>` の WebSocket をルームごとの Durable Object につなぐ |
-| `wrangler.jsonc` | Cloudflare の設定（Worker 名 `hayaoshi`） |
+| `wrangler.jsonc` | Cloudflare の設定（Worker 名 `online-test`） |
 
 ## Cloudflare への公開（GitHub 連携）
 
@@ -22,9 +22,9 @@
 2. **Create application** を押し、**GitHub** を選ぶ（初回は GitHub の認証）
 3. このリポジトリを選ぶ
 4. 設定はそのままで **Save and Deploy**
-   - プロジェクト名は `hayaoshi`（`wrangler.jsonc` の `name` と同じ）にする
+   - プロジェクト名は `online-test`（`wrangler.jsonc` の `name` と同じ）
    - デプロイコマンドは `npx wrangler deploy`
-5. `https://hayaoshi.<あなたのサブドメイン>.workers.dev` で開ける
+5. `https://online-test.mitsumedia000.workers.dev` で開ける
 
 以後は GitHub の main ブランチに push するたびに自動で更新されます。
 
