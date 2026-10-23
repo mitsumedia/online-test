@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#e2382b">
+<title>早押しピンポン</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='26' fill='%23e2382b'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one-screen studio console — host gets a scoreboard + buzz queue, players get one giant buzzer */
+:root{
+  --bg:#e9edf3; --panel:#ffffff; --ink:#1b2333; --mute:#5d6779; --line:#d3d9e3;
+  --buzz:#e2382b; --buzz-dk:#a8221a; --gold:#f2b51b; --ok:#169a5c; --ng:#5d6779; --chip:#f1f4f8;
+  --f-disp:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a26; --panel:#1e2636; --ink:#eef2f8; --mute:#a3adbf; --line:#323d52;
+  --buzz:#f04a3c; --buzz-dk:#a9261c; --gold:#f5c33f; --ok:#2fbf7a; --ng:#8d97aa; --chip:#273145; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a26; --panel:#1e2636; --ink:#eef2f8; --mute:#a3adbf; --line:#323d52;
+  --buzz:#f04a3c; --buzz-dk:#a9261c; --gold:#f5c33f; --ok:#2fbf7a; --ng:#8d97aa; --chip:#273145; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;box-sizing:border-box}
+*{box-sizing:border-box}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px;min-height:100%}
+h1{font-family:var(--f-disp);font-weight:400;font-size:2rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+h1 span{color:var(--buzz)}
+.sub{color:var(--mute);margin:0;font-size:.9rem}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label{font-weight:700;font-size:.85rem;color:var(--mute)}
+input[type=text]{width:100%;font:inherit;font-size:1.1rem;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.role{border:2px solid var(--line);border-radius:12px;padding:14px 10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:800;cursor:pointer;display:flex;flex-direction:column;gap:4px;align-items:center}
+.role small{font-weight:500;color:var(--mute);font-size:.78rem}
+.role[aria-pressed="true"]{border-color:var(--buzz);background:var(--chip)}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.btn{border:0;border-radius:12px;padding:14px;font-weight:800;font-size:1.05rem;background:var(--ink);color:var(--bg)}
+.btn.red{background:var(--buzz);color:#fff}
+.btn.ok{background:var(--ok);color:#fff}
+.btn.ng{background:var(--ng);color:#fff}
+.btn.ghost{background:transparent;color:var(--mute);border:1px solid var(--line);font-size:.9rem;padding:10px}
+.btn:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.btn{flex:1 1 120px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{background:var(--chip);border-radius:999px;padding:4px 12px;font-size:.82rem;font-weight:700;color:var(--mute)}
+.tag b{color:var(--ink)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ng);margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--ok)}
+.qno{font-family:var(--f-disp);font-size:1.4rem}
+.state{font-family:var(--f-disp);font-size:1.6rem;text-align:center;padding:6px 0;text-wrap:balance}
+.state.open{color:var(--buzz)}
+.queue{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.queue li{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--chip);border:2px solid transparent}
+.queue li.ans{border-color:var(--gold)}
+.queue .n{font-family:var(--f-disp);font-size:1.3rem;text-align:center}
+.queue li:first-child .n{color:var(--buzz)}
+.queue .nm{font-weight:800;min-width:0;overflow-wrap:anywhere}
+.queue .t{font-variant-numeric:tabular-nums;color:var(--mute);font-size:.85rem}
+.queue .give{grid-column:1/-1}
+.empty{color:var(--mute);text-align:center;font-size:.9rem;padding:8px}
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.pl{background:var(--chip);border-radius:10px;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.pl .nm{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.pl .sc{font-family:var(--f-disp);font-size:1.3rem;font-variant-numeric:tabular-nums}
+.pl.out{opacity:.45}
+.pl.out .nm::after{content:" ✕";color:var(--buzz)}
+.judge{display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:center}
+.judge .who{font-family:var(--f-disp);font-size:1.6rem;overflow-wrap:anywhere}
+/* player buzzer */
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding-block:8px}
+.buzzer{width:min(72vw,300px);aspect-ratio:1;max-width:100%;border-radius:50%;border:0;
+  background:radial-gradient(circle at 38% 32%,#ff7a6e 0%,var(--buzz) 45%,var(--buzz-dk) 100%);
+  box-shadow:0 14px 0 var(--buzz-dk),0 18px 30px rgba(0,0,0,.25);color:#fff;font-family:var(--f-disp);font-size:2.6rem;
+  transition:transform .06s,box-shadow .06s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.buzzer:active:not(:disabled),.buzzer.pressed{transform:translateY(12px);box-shadow:0 2px 0 var(--buzz-dk),0 4px 10px rgba(0,0,0,.25)}
+.buzzer:disabled{filter:grayscale(.85) brightness(.9);cursor:default}
+.buzzer.mine{background:radial-gradient(circle at 38% 32%,#ffe28a 0%,var(--gold) 50%,#b07f06 100%);box-shadow:0 2px 0 #b07f06,0 0 0 10px rgba(242,181,27,.35);transform:translateY(12px);color:#3a2a00;animation:pulse 1s infinite}
+@keyframes pulse{50%{box-shadow:0 2px 0 #b07f06,0 0 0 22px rgba(242,181,27,.12)}}
+.msg{font-family:var(--f-disp);font-size:1.5rem;text-align:center;min-height:2.2em;text-wrap:balance}
+.msg.hot{color:var(--gold)}
+.msg.red{color:var(--buzz)}
+.msg.ok{color:var(--ok)}
+.flash{position:fixed;inset:0;pointer-events:none;background:var(--gold);opacity:0;transition:opacity .4s}
+.flash.on{opacity:.35;transition:none}
+.note{font-size:.82rem;color:var(--mute);line-height:1.6;margin:0}
+@media (prefers-reduced-motion:reduce){.buzzer.mine{animation:none}.flash{transition:none}}
+.qrbox{align-items:center;text-align:center}
+.qr{background:#ffffff;padding:14px;border-radius:12px;width:100%;max-width:300px}
+.qr canvas,.qr img{width:100%!important;height:auto!important;display:block}
+#hQrUrl{word-break:break-all}
+</style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+<div class="wrap">
+
+  <!-- 入室画面 -->
+  <section id="lobby" class="wrap" style="min-height:auto">
+    <div>
+      <h1>早押し<span>ピンポン</span></h1>
+      <p class="sub">親のスマホが出題台、子のスマホが早押しボタンになります</p>
+    </div>
+    <div class="panel">
+      <label for="code">ルーム番号（みんな同じ番号に）</label>
+      <input type="text" id="code" inputmode="numeric" maxlength="8" value="1234">
+      <label>役割</label>
+      <div class="roles">
+        <button class="role" id="rHost" aria-pressed="false">出題者<small>親・1台</small></button>
+        <button class="role" id="rPlayer" aria-pressed="true">回答者<small>子・何台でも</small></button>
+      </div>
+      <div id="nameBox" style="display:flex;flex-direction:column;gap:8px">
+        <label for="name">なまえ</label>
+        <input type="text" id="name" maxlength="10" placeholder="例：はると">
+      </div>
+      <button class="btn red" id="enter">はじめる</button>
+      <p class="note" id="lobbyErr" hidden></p>
+    </div>
+    <p class="note">各スマホでこのページを開き、同じルーム番号で入ってください。出題者の画面に参加用QRコードも出せます。</p>
+  </section>
+
+  <!-- 出題者画面 -->
+  <section id="host" class="wrap" hidden style="min-height:auto">
+    <div class="topbar">
+      <span class="qno" id="hQ">第1問</span>
+      <span class="tag"><span class="dot" id="hDot"></span>ルーム <b id="hCode"></b>・回答者 <b id="hCount">0</b>人</span>
+    </div>
+    <div class="panel">
+      <div class="state" id="hState">準備中</div>
+      <button class="btn red" id="hOpen">早押しスタート</button>
+      <div class="judge" id="hJudge" hidden>
+        <div class="sub">解答者</div>
+        <div class="who" id="hWho"></div>
+        <div class="row">
+          <button class="btn ok" id="hOk">⭕ 正解</button>
+          <button class="btn ng" id="hNg">❌ 不正解</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <label>押した順</label>
+      <ol class="queue" id="hQueue"></ol>
+    </div>
+    <div class="panel">
+      <label>得点</label>
+      <div class="board" id="hBoard"></div>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="hQrBtn">参加用QRを表示</button>
+      <button class="btn ghost" id="hSkip">この問題を流す（次へ）</button>
+      <button class="btn ghost" id="hReset">得点リセット</button>
+    </div>
+    <div class="row" id="hResetConfirm" hidden>
+      <button class="btn red" id="hResetYes">本当にリセット</button>
+      <button class="btn ghost" id="hResetNo">やめる</button>
+    </div>
+    <div class="panel qrbox" id="hQrBox" hidden>
+      <div class="qr" id="hQr"></div>
+      <div class="sub" id="hQrUrl"></div>
+    </div>
+  </section>
+
+  <!-- 回答者画面 -->
+  <section id="player" class="wrap" hidden>
+    <div class="topbar">
+      <span class="qno" id="pQ">—</span>
+      <span class="tag"><span class="dot" id="pDot"></span><b id="pName"></b>・<span id="pScore">0</span>点</span>
+    </div>
+    <div class="stage">
+      <div class="msg" id="pMsg">接続しています</div>
+      <button class="buzzer" id="buzz" disabled>押す！</button>
+      <div class="sub" id="pSub"></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const store = { get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}} };
+
+  // ---------- 音 ----------
+  let ac = null;
+  function audio(){ if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(ac && ac.state==="suspended") ac.resume(); return ac; }
+  function tone(f, start, dur, type="sine", vol=.35){
+    const a = audio(); if(!a) return;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(vol, a.currentTime+start);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime+start+dur);
+    o.connect(g).connect(a.destination); o.start(a.currentTime+start); o.stop(a.currentTime+start+dur+.05);
+  }
+  const sPinpon = () => { tone(1318,0,.35,"triangle",.4); tone(1046,.28,.6,"triangle",.4); };
+  const sBuzz   = () => { tone(880,0,.12,"square",.15); };
+  const sCorrect= () => { tone(1046,0,.15,"triangle"); tone(1318,.15,.15,"triangle"); tone(1568,.3,.4,"triangle"); };
+  const sWrong  = () => { tone(150,0,.6,"sawtooth",.25); };
+  const flash = () => { const f=$("flash"); f.classList.add("on"); requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove("on"))); };
+  const vib = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
+  let wakeLock = null;
+  async function wake(){ try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){} }
+  document.addEventListener("visibilitychange", () => { if(document.visibilityState==="visible" && role) wake(); });
+
+  // ---------- 接続 ----------
+  let myId = store.get("hp.id");
+  if(!myId){ myId = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); store.set("hp.id", myId); }
+  let ws = null, code = "", role = null, name = "", onState = () => {}, retry = 0;
+  const setDot = c => { $("hDot").classList.toggle("on",c); $("pDot").classList.toggle("on",c); };
+  function connect(){
+    const proto = location.protocol==="https:" ? "wss" : "ws";
+    ws = new WebSocket(proto+"://"+location.host+"/ws/"+code);
+    ws.onopen = () => { retry = 0; setDot(true); send({t:"join", role, name, id: myId}); };
+    ws.onmessage = e => { try{ const m = JSON.parse(e.data); if(m.t==="state") onState(m); }catch(err){} };
+    ws.onclose = () => { setDot(false); setTimeout(connect, Math.min(5000, 500*2**retry++)); };
+  }
+  const send = o => { if(ws && ws.readyState===1) ws.send(JSON.stringify(o)); };
+
+  // ---------- 入室 ----------
+  const qs = new URLSearchParams(location.search);
+  let pick = store.get("hp.role") || "player";
+  $("name").value = store.get("hp.name") || "";
+  $("code").value = qs.get("room") || store.get("hp.code") || "1234";
+  if(qs.get("room")) pick = "player";
+  function setRole(r){ pick=r; $("rHost").setAttribute("aria-pressed", r==="host"); $("rPlayer").setAttribute("aria-pressed", r==="player"); $("nameBox").hidden = r==="host"; }
+  setRole(pick);
+  $("rHost").onclick = () => setRole("host");
+  $("rPlayer").onclick = () => setRole("player");
+
+  $("enter").onclick = () => {
+    audio(); wake();
+    code = $("code").value.trim().replace(/[^0-9a-z]/gi,"").toLowerCase().slice(0,8) || "1234";
+    name = $("name").value.trim().slice(0,10);
+    if(pick==="player" && !name){ const e=$("lobbyErr"); e.textContent="なまえを入れてください"; e.hidden=false; $("name").focus(); return; }
+    role = pick;
+    store.set("hp.role",role); store.set("hp.name",name); store.set("hp.code",code);
+    $("lobby").hidden = true;
+    if(role==="host") startHost(); else startPlayer();
+    connect();
+  };
+
+  // ---------- 出題者 ----------
+  function startHost(){
+    $("host").hidden = false; $("hCode").textContent = code;
+    let S = null, players = [], prevFirst = null, prevLen = 0;
+    const nameOf = id => (S.order.find(o=>o.id===id)||{}).name || "？";
+
+    onState = m => {
+      const was = S; S = m.s; players = m.players;
+      // 押されたときの音
+      if(was && S.round===was.round && S.order.length > prevLen){
+        if(prevLen===0 && !S.answerer){ sPinpon(); flash(); vib(80); } else sBuzz();
+      }
+      prevLen = S.order.length;
+      render();
+    };
+
+    $("hOpen").onclick = () => { audio(); send({t:"open"}); };
+    $("hOk").onclick = () => { sCorrect(); send({t:"correct"}); };
+    $("hNg").onclick = () => { sWrong(); send({t:"wrong"}); };
+    $("hSkip").onclick = () => send({t:"skip"});
+    $("hReset").onclick = () => { $("hResetConfirm").hidden=false; };
+    $("hResetNo").onclick = () => { $("hResetConfirm").hidden=true; };
+    $("hResetYes").onclick = () => { send({t:"reset"}); $("hResetConfirm").hidden=true; };
+
+    let qrMade = false;
+    $("hQrBtn").onclick = () => {
+      const box = $("hQrBox"); box.hidden = !box.hidden;
+      $("hQrBtn").textContent = box.hidden ? "参加用QRを表示" : "QRを閉じる";
+      if(!box.hidden && !qrMade && window.QRCode){
+        const url = location.origin + "/?room=" + encodeURIComponent(code);
+        new QRCode($("hQr"), { text:url, width:512, height:512, colorDark:"#1b2333", colorLight:"#ffffff", correctLevel:QRCode.CorrectLevel.M });
+        $("hQrUrl").textContent = url; qrMade = true;
+      }
+      if(!box.hidden) box.scrollIntoView({behavior:"smooth", block:"center"});
+    };
+
+    function render(){
+      if(!S) return;
+      $("hQ").textContent = "第"+S.round+"問";
+      $("hCount").textContent = players.length;
+      const st = $("hState"); st.className="state";
+      if(S.phase==="open"){ st.textContent = S.order.length ? "押されました！解答権を渡してください" : "受付中…"; st.classList.add("open"); }
+      else if(S.phase==="judging"){ st.textContent = "判定してください"; }
+      else if(S.result && S.result.ok){ st.textContent = "⭕ "+S.result.name+" 正解！"; }
+      else st.textContent = "問題を読んでからスタート";
+      $("hOpen").hidden = S.phase!=="closed";
+      $("hOpen").textContent = S.result ? "次の問題（第"+(S.round+1)+"問）をスタート" : "早押しスタート";
+      $("hJudge").hidden = S.phase!=="judging";
+      if(S.answerer) $("hWho").textContent = nameOf(S.answerer)+" さん";
+
+      const q = $("hQueue"); q.textContent="";
+      if(!S.order.length){ const li=document.createElement("li"); li.className="empty"; li.style.display="block"; li.textContent = S.phase==="open"?"まだ誰も押していません":"—"; q.append(li); }
+      S.order.forEach((o,i) => {
+        const li=document.createElement("li"); if(o.id===S.answerer) li.classList.add("ans");
+        const n=document.createElement("span"); n.className="n"; n.textContent=i+1;
+        const nm=document.createElement("span"); nm.className="nm"; nm.textContent=o.name;
+        const t=document.createElement("span"); t.className="t"; t.textContent = i===0 ? (o.ms/1000).toFixed(2)+"秒" : "+"+((o.ms-S.order[0].ms)/1000).toFixed(2);
+        li.append(n,nm,t);
+        if(S.phase==="open"){
+          const b=document.createElement("button"); b.className="btn red give"; b.textContent=o.name+" さんに解答権";
+          b.onclick=()=>{ sPinpon(); send({t:"give", id:o.id}); }; li.append(b);
+        }
+        q.append(li);
+      });
+
+      const bd=$("hBoard"); bd.textContent="";
+      const online = new Set(players.map(p=>p.name));
+      const lockedIds = new Set(S.locked);
+      const lockedNames = new Set(players.filter(p=>lockedIds.has(p.id)).map(p=>p.name));
+      const names = [...new Set([...Object.keys(S.scores), ...online])].filter(Boolean);
+      names.sort((a,b)=>(S.scores[b]||0)-(S.scores[a]||0));
+      if(!names.length){ const d=document.createElement("div"); d.className="empty"; d.textContent="回答者が入るとここに並びます"; bd.append(d); }
+      for(const nm of names){
+        const d=document.createElement("div"); d.className="pl"; if(lockedNames.has(nm)) d.classList.add("out");
+        if(!online.has(nm)) d.style.opacity=".5";
+        const a=document.createElement("span"); a.className="nm"; a.textContent=nm;
+        const b=document.createElement("span"); b.className="sc"; b.textContent=S.scores[nm]||0;
+        d.append(a,b); bd.append(d);
+      }
+    }
+  }
+
+  // ---------- 回答者 ----------
+  function startPlayer(){
+    $("player").hidden = false; $("pName").textContent = name;
+    let S = null, hosts = 0, lastAns = null, lastRes = null, pressedRound = null, pressedAt = 0;
+
+    $("buzz").addEventListener("pointerdown", e => { e.preventDefault(); press(); });
+    $("buzz").addEventListener("keydown", e => { if(e.key===" "||e.key==="Enter"){ e.preventDefault(); press(); } });
+    function press(){
+      if(!S || S.phase==="closed" || $("buzz").disabled) return;
+      audio(); pressedRound = S.round; pressedAt = Date.now(); sBuzz(); vib(40);
+      send({t:"buzz", round:S.round});
+      render();
+    }
+
+    onState = m => {
+      S = m.s; hosts = m.hosts;
+      if(S.answerer===myId && lastAns!==S.round+":"+myId){ lastAns=S.round+":"+myId; sPinpon(); flash(); vib([100,60,100]); }
+      const r = S.result, key = r ? r.round+":"+r.id+":"+r.ok : null;
+      if(r && r.id===myId && key!==lastRes){ lastRes=key; r.ok ? sCorrect() : sWrong(); }
+      if(pressedRound!==null && pressedRound!==S.round) pressedRound=null;
+      render();
+    };
+
+    function render(){
+      const b=$("buzz"), m=$("pMsg"), s=$("pSub");
+      b.className="buzzer"; m.className="msg"; s.textContent=""; b.textContent="押す！";
+      if(!S){ m.textContent="接続しています"; b.disabled=true; return; }
+      $("pQ").textContent="第"+S.round+"問";
+      $("pScore").textContent = S.scores[name]||0;
+      if(!hosts){ s.textContent="出題者がまだ入っていません"; }
+      const pos = S.order.findIndex(o=>o.id===myId);
+      const locked = S.locked.includes(myId);
+      const r = S.result;
+      if(S.answerer===myId){ b.classList.add("mine"); b.disabled=true; b.textContent="解答！"; m.textContent="あなたに解答権！"; m.classList.add("hot"); s.textContent="答えを言ってください"; return; }
+      if(r && r.id===myId && r.round===S.round && S.phase==="closed" && r.ok){ m.textContent="⭕ 正解！"; m.classList.add("ok"); b.disabled=true; return; }
+      if(locked){ m.textContent="❌ この問題はお休み"; m.classList.add("red"); b.disabled=true; return; }
+      if(S.phase==="closed"){ m.textContent = (r && r.ok && r.round===S.round) ? r.name+" さんが正解！" : "問題をよく聞いてね"; b.disabled=true; return; }
+      if(S.phase==="judging"){ m.textContent="ほかの人が解答中"; b.disabled=true; if(pos>0) s.textContent="あなたは"+(pos+1)+"番目"; return; }
+      if(pos>=0){ b.classList.add("pressed"); b.disabled=true; m.textContent=(pos+1)+"番目に押しました"; m.classList.add("red"); s.textContent="解答権を待っています"; return; }
+      if(pressedRound===S.round && Date.now()-pressedAt<3000){ setTimeout(render,3000); b.classList.add("pressed"); b.disabled=true; m.textContent="送信中…"; return; }
+      b.disabled=false; m.textContent="押せます！"; m.classList.add("red");
+    }
+    render();
+  }
+})();
+</script>
+</body>
+</html>
