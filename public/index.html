@@ -95,6 +95,29 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .qr{background:#ffffff;padding:14px;border-radius:12px;width:100%;max-width:300px}
 .qr canvas,.qr img{width:100%!important;height:auto!important;display:block}
 #hQrUrl{word-break:break-all}
+.now{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;background:var(--chip);border-radius:12px;padding:10px}
+.now img,.tracks img,.reveal img{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--line)}
+.now .meta,.tracks .meta,.reveal .meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.now .meta b,.tracks .meta b{overflow-wrap:anywhere}
+.now .meta span,.tracks .meta span{color:var(--mute);font-size:.85rem;overflow-wrap:anywhere}
+.now .ctl{display:flex;gap:6px}
+.mini{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:1.1rem;font-weight:800;display:grid;place-items:center}
+.search{display:flex;gap:8px}
+.search input{flex:1;min-width:0}
+.search .btn{flex:0 0 auto;padding:12px 16px}
+.tracks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tracks:empty{display:none}
+.tracks li{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:8px;border-radius:10px;background:var(--chip)}
+.tracks img{width:48px;height:48px}
+.tracks .acts{display:flex;gap:6px}
+.tracks.list li.cur{outline:2px solid var(--gold)}
+.tracks.list li.done{opacity:.5}
+.tracks .no{font-family:var(--f-disp);font-size:.8rem;color:var(--mute)}
+.reveal{display:flex;gap:12px;align-items:center;background:var(--chip);border-radius:12px;padding:12px;width:100%;max-width:420px}
+.reveal img{width:72px;height:72px}
+.reveal .meta b{font-size:1.1rem;overflow-wrap:anywhere}
+.reveal .meta span{color:var(--mute);overflow-wrap:anywhere}
+.reveal .lbl{font-size:.75rem;font-weight:800;letter-spacing:.08em;color:var(--buzz)}
 </style>
 </head>
 <body>
@@ -133,7 +156,18 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
     </div>
     <div class="panel">
       <div class="state" id="hState">準備中</div>
+      <div class="now" id="hNow" hidden>
+        <img id="hNowArt" alt="">
+        <div class="meta"><b id="hNowTitle"></b><span id="hNowArtist"></span><span class="sub" id="hNowNo"></span></div>
+        <div class="ctl">
+          <button class="mini" id="hPlay" aria-label="再生/一時停止">▶</button>
+          <button class="mini" id="hRestart" aria-label="最初から">⟲</button>
+        </div>
+      </div>
       <button class="btn red" id="hOpen">早押しスタート</button>
+      <button class="btn" id="hNext" hidden>次の問題へ</button>
+      <button class="btn ghost" id="hReveal" hidden>だれも分からない → 答えを見せる</button>
+      <div class="reveal" id="hRevealBox" hidden></div>
       <div class="judge" id="hJudge" hidden>
         <div class="sub">解答者</div>
         <div class="who" id="hWho"></div>
@@ -151,6 +185,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       <label>得点</label>
       <div class="board" id="hBoard"></div>
     </div>
+    <div class="panel">
+      <div class="topbar"><label>出題リスト（イントロクイズ）</label><span class="sub" id="hListCount">0曲</span></div>
+      <p class="note">曲名やアーティスト名で探して追加します。曲は30秒の試聴版で、このスマホから流れます（Bluetoothスピーカーにつないでおくとそこから鳴ります）。リストが空のときは普通の早押しです。</p>
+      <form class="search" id="hSearchForm">
+        <input type="text" id="hSearch" placeholder="例：YOASOBI アイドル" enterkeyhint="search" autocomplete="off">
+        <button class="btn" id="hSearchBtn">検索</button>
+      </form>
+      <ul class="tracks" id="hResults"></ul>
+      <ul class="tracks list" id="hList"></ul>
+      <button class="btn ghost" id="hClearList" hidden>リストを空にする</button>
+      <div class="row" id="hClearConfirm" hidden>
+        <button class="btn red" id="hClearYes">本当に空にする</button>
+        <button class="btn ghost" id="hClearNo">やめる</button>
+      </div>
+    </div>
+    <audio id="music" preload="auto" playsinline></audio>
     <div class="row">
       <button class="btn ghost" id="hQrBtn">参加用QRを表示</button>
       <button class="btn ghost" id="hSkip">この問題を流す（次へ）</button>
@@ -176,6 +226,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       <div class="msg" id="pMsg">接続しています</div>
       <button class="buzzer" id="buzz" disabled>押す！</button>
       <div class="sub" id="pSub"></div>
+      <div class="reveal" id="pReveal" hidden></div>
     </div>
   </section>
 </div>
@@ -245,28 +296,105 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
   };
 
   // ---------- 出題者 ----------
+  function revealEl(box, rv, label){
+    box.textContent = "";
+    if(!rv){ box.hidden = true; return; }
+    if(rv.art){ const im=document.createElement("img"); im.src=rv.art; im.alt=""; box.append(im); }
+    const m=document.createElement("div"); m.className="meta";
+    const l=document.createElement("span"); l.className="lbl"; l.textContent=label;
+    const b=document.createElement("b"); b.textContent=rv.title;
+    const a=document.createElement("span"); a.textContent=rv.artist;
+    m.append(l,b,a); box.append(m); box.hidden=false;
+  }
+
   function startHost(){
     $("host").hidden = false; $("hCode").textContent = code;
-    let S = null, players = [], prevFirst = null, prevLen = 0;
+    let S = null, players = [], prevLen = 0;
     const nameOf = id => (S.order.find(o=>o.id===id)||{}).name || "？";
+    const music = $("music");
+    const cur = () => S && S.playlist[S.qi] || null;
+
+    // ---- 曲の再生 ----
+    let loaded = null, previewing = null;
+    function load(t){ if(t && loaded!==t.preview){ music.src = t.preview; loaded = t.preview; previewing = null; } }
+    function playFromStart(){ const t=cur(); if(!t) return; load(t); try{ music.currentTime=0; }catch(e){} music.play().catch(()=>{}); }
+    function resume(){ if(cur() && music.src && previewing===null) music.play().catch(()=>{}); }
+    function pause(){ music.pause(); }
+    music.addEventListener("play", syncPlayBtn); music.addEventListener("pause", syncPlayBtn); music.addEventListener("ended", syncPlayBtn);
+    function syncPlayBtn(){ $("hPlay").textContent = music.paused ? "▶" : "⏸"; renderResults(); }
+    $("hPlay").onclick = () => { const t=cur(); if(!t) return; if(previewing!==null || loaded!==t.preview){ load(t); previewing=null; } music.paused ? music.play().catch(()=>{}) : music.pause(); };
+    $("hRestart").onclick = () => { previewing=null; playFromStart(); };
 
     onState = m => {
       const was = S; S = m.s; players = m.players;
-      // 押されたときの音
       if(was && S.round===was.round && S.order.length > prevLen){
-        if(prevLen===0 && !S.answerer){ sPinpon(); flash(); vib(80); } else sBuzz();
+        if(prevLen===0 && !S.answerer){ pause(); sPinpon(); flash(); vib(80); } else sBuzz();
       }
+      if(was && S.round!==was.round){ pause(); }
       prevLen = S.order.length;
+      if(music.paused && previewing===null) load(cur()); // 次の曲を先読み
       render();
     };
 
-    $("hOpen").onclick = () => { audio(); send({t:"open"}); };
-    $("hOk").onclick = () => { sCorrect(); send({t:"correct"}); };
-    $("hNg").onclick = () => { sWrong(); send({t:"wrong"}); };
-    $("hSkip").onclick = () => send({t:"skip"});
+    $("hOpen").onclick = () => { audio(); previewing=null; playFromStart(); send({t:"open"}); };
+    $("hNext").onclick = () => { pause(); send({t:"next"}); };
+    $("hReveal").onclick = () => { send({t:"reveal"}); };
+    $("hOk").onclick = () => { sCorrect(); send({t:"correct"}); setTimeout(resume, 900); };
+    $("hNg").onclick = () => { const others = S ? S.order.filter(o=>o.id!==S.answerer).length : 0; sWrong(); send({t:"wrong"}); if(!others) setTimeout(resume, 700); };
+    $("hSkip").onclick = () => { pause(); send({t:"skip"}); };
     $("hReset").onclick = () => { $("hResetConfirm").hidden=false; };
     $("hResetNo").onclick = () => { $("hResetConfirm").hidden=true; };
-    $("hResetYes").onclick = () => { send({t:"reset"}); $("hResetConfirm").hidden=true; };
+    $("hResetYes").onclick = () => { pause(); send({t:"reset"}); $("hResetConfirm").hidden=true; };
+
+    // ---- 曲さがし ----
+    let results = [];
+    $("hSearchForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const q = $("hSearch").value.trim(); if(!q) return;
+      $("hSearch").blur();
+      const btn = $("hSearchBtn"); btn.disabled = true; btn.textContent = "…";
+      try{
+        const r = await fetch("/api/search?q="+encodeURIComponent(q));
+        const d = await r.json();
+        results = d.results || [];
+        if(d.error) showResultsMsg(d.error); else if(!results.length) showResultsMsg("見つかりませんでした"); else renderResults();
+      }catch(err){ showResultsMsg("検索できませんでした。通信を確認してください"); }
+      btn.disabled = false; btn.textContent = "検索";
+    });
+    function showResultsMsg(t){ results=[]; const ul=$("hResults"); ul.textContent=""; const li=document.createElement("li"); li.className="empty"; li.style.display="block"; li.textContent=t; ul.append(li); }
+    function trackRow(t, extra){
+      const li=document.createElement("li");
+      const im=document.createElement("img"); im.src=t.art||""; im.alt=""; im.loading="lazy";
+      const m=document.createElement("div"); m.className="meta";
+      const b=document.createElement("b"); b.textContent=t.title;
+      const a=document.createElement("span"); a.textContent=t.artist;
+      m.append(b,a);
+      const acts=document.createElement("div"); acts.className="acts";
+      li.append(im,m,acts); extra(acts, li); return li;
+    }
+    function miniBtn(label, aria, fn){ const b=document.createElement("button"); b.className="mini"; b.type="button"; b.textContent=label; b.setAttribute("aria-label",aria); b.onclick=fn; return b; }
+    function renderResults(){
+      const ul=$("hResults"); if(!results.length) return; ul.textContent="";
+      const inList = new Set((S?S.playlist:[]).map(t=>t.id));
+      for(const t of results){
+        ul.append(trackRow(t, acts => {
+          const playing = previewing===t.id && !music.paused;
+          acts.append(miniBtn(playing?"⏸":"▶", "試聴", () => {
+            if(playing){ music.pause(); return; }
+            music.src=t.preview; loaded=null; previewing=t.id; music.play().catch(()=>{});
+          }));
+          const add = miniBtn(inList.has(t.id)?"✓":"＋", "リストに追加", () => { send({t:"addTrack", track:t}); });
+          add.disabled = inList.has(t.id); acts.append(add);
+        }));
+      }
+      const close=document.createElement("li"); close.style.display="block"; close.style.background="transparent"; close.style.padding="0";
+      const cb=document.createElement("button"); cb.className="btn ghost"; cb.type="button"; cb.style.width="100%"; cb.textContent="検索結果を閉じる";
+      cb.onclick=()=>{ results=[]; ul.textContent=""; if(previewing!==null){ music.pause(); previewing=null; } };
+      close.append(cb); ul.append(close);
+    }
+    $("hClearList").onclick = () => { $("hClearConfirm").hidden=false; };
+    $("hClearNo").onclick = () => { $("hClearConfirm").hidden=true; };
+    $("hClearYes").onclick = () => { pause(); send({t:"clearList"}); $("hClearConfirm").hidden=true; };
 
     let qrMade = false;
     $("hQrBtn").onclick = () => {
@@ -284,13 +412,25 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       if(!S) return;
       $("hQ").textContent = "第"+S.round+"問";
       $("hCount").textContent = players.length;
+      const t = cur(), n = S.playlist.length;
       const st = $("hState"); st.className="state";
       if(S.phase==="open"){ st.textContent = S.order.length ? "押されました！解答権を渡してください" : "受付中…"; st.classList.add("open"); }
       else if(S.phase==="judging"){ st.textContent = "判定してください"; }
       else if(S.result && S.result.ok){ st.textContent = "⭕ "+S.result.name+" 正解！"; }
-      else st.textContent = "問題を読んでからスタート";
-      $("hOpen").hidden = S.phase!=="closed";
-      $("hOpen").textContent = S.result ? "次の問題（第"+(S.round+1)+"問）をスタート" : "早押しスタート";
+      else if(S.result && S.result.shown){ st.textContent = "正解者なし"; }
+      else if(n && !t){ st.textContent = "リストの曲はすべて出題しました"; }
+      else st.textContent = t ? "スタートで曲が流れます" : "問題を読んでからスタート";
+
+      // いまの曲
+      $("hNow").hidden = !t;
+      if(t){ $("hNowArt").src=t.art||""; $("hNowTitle").textContent=t.title; $("hNowArtist").textContent=t.artist; $("hNowNo").textContent=(S.qi+1)+" / "+n+" 曲目"; }
+
+      const closed = S.phase==="closed";
+      $("hOpen").hidden = !(closed && !S.result);
+      $("hOpen").textContent = t ? "▶ 曲を流して早押しスタート" : "早押しスタート";
+      $("hNext").hidden = !(closed && S.result);
+      $("hReveal").hidden = !(t && S.phase==="open");
+      revealEl($("hRevealBox"), S.reveal && S.reveal.round===S.round ? S.reveal : null, "こたえ");
       $("hJudge").hidden = S.phase!=="judging";
       if(S.answerer) $("hWho").textContent = nameOf(S.answerer)+" さん";
 
@@ -298,10 +438,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       if(!S.order.length){ const li=document.createElement("li"); li.className="empty"; li.style.display="block"; li.textContent = S.phase==="open"?"まだ誰も押していません":"—"; q.append(li); }
       S.order.forEach((o,i) => {
         const li=document.createElement("li"); if(o.id===S.answerer) li.classList.add("ans");
-        const n=document.createElement("span"); n.className="n"; n.textContent=i+1;
+        const nn=document.createElement("span"); nn.className="n"; nn.textContent=i+1;
         const nm=document.createElement("span"); nm.className="nm"; nm.textContent=o.name;
-        const t=document.createElement("span"); t.className="t"; t.textContent = i===0 ? (o.ms/1000).toFixed(2)+"秒" : "+"+((o.ms-S.order[0].ms)/1000).toFixed(2);
-        li.append(n,nm,t);
+        const tt=document.createElement("span"); tt.className="t"; tt.textContent = i===0 ? (o.ms/1000).toFixed(2)+"秒" : "+"+((o.ms-S.order[0].ms)/1000).toFixed(2);
+        li.append(nn,nm,tt);
         if(S.phase==="open"){
           const b=document.createElement("button"); b.className="btn red give"; b.textContent=o.name+" さんに解答権";
           b.onclick=()=>{ sPinpon(); send({t:"give", id:o.id}); }; li.append(b);
@@ -323,6 +463,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
         const b=document.createElement("span"); b.className="sc"; b.textContent=S.scores[nm]||0;
         d.append(a,b); bd.append(d);
       }
+
+      // 出題リスト
+      $("hListCount").textContent = n+"曲";
+      $("hClearList").hidden = !n;
+      const ul=$("hList"); ul.textContent="";
+      S.playlist.forEach((tr,i) => {
+        const li = trackRow(tr, acts => {
+          if(closed && i!==S.qi) acts.append(miniBtn("↑", "この曲を次に出題", () => send({t:"setQ", i})));
+          acts.append(miniBtn("✕", "リストから消す", () => send({t:"delTrack", i})));
+        });
+        const no=document.createElement("span"); no.className="no"; no.textContent=(i+1)+"曲目"+(i===S.qi?"・いま":"");
+        li.querySelector(".meta").prepend(no);
+        if(i===S.qi) li.classList.add("cur"); else if(i<S.qi) li.classList.add("done");
+        ul.append(li);
+      });
+      renderResults();
     }
   }
 
@@ -351,6 +507,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 
     function render(){
       const b=$("buzz"), m=$("pMsg"), s=$("pSub");
+      revealEl($("pReveal"), S && S.reveal && S.reveal.round===S.round ? S.reveal : null, "こたえ");
       b.className="buzzer"; m.className="msg"; s.textContent=""; b.textContent="押す！";
       if(!S){ m.textContent="接続しています"; b.disabled=true; return; }
       $("pQ").textContent="第"+S.round+"問";
@@ -362,7 +519,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       if(S.answerer===myId){ b.classList.add("mine"); b.disabled=true; b.textContent="解答！"; m.textContent="あなたに解答権！"; m.classList.add("hot"); s.textContent="答えを言ってください"; return; }
       if(r && r.id===myId && r.round===S.round && S.phase==="closed" && r.ok){ m.textContent="⭕ 正解！"; m.classList.add("ok"); b.disabled=true; return; }
       if(locked){ m.textContent="❌ この問題はお休み"; m.classList.add("red"); b.disabled=true; return; }
-      if(S.phase==="closed"){ m.textContent = (r && r.ok && r.round===S.round) ? r.name+" さんが正解！" : "問題をよく聞いてね"; b.disabled=true; return; }
+      if(S.phase==="closed"){ m.textContent = (r && r.ok && r.round===S.round) ? r.name+" さんが正解！" : (r && r.shown) ? "正解者なし" : (S.songCount ? "曲が流れたら押してね" : "問題をよく聞いてね"); b.disabled=true; return; }
       if(S.phase==="judging"){ m.textContent="ほかの人が解答中"; b.disabled=true; if(pos>0) s.textContent="あなたは"+(pos+1)+"番目"; return; }
       if(pos>=0){ b.classList.add("pressed"); b.disabled=true; m.textContent=(pos+1)+"番目に押しました"; m.classList.add("red"); s.textContent="解答権を待っています"; return; }
       if(pressedRound===S.round && Date.now()-pressedAt<3000){ setTimeout(render,3000); b.classList.add("pressed"); b.disabled=true; m.textContent="送信中…"; return; }
