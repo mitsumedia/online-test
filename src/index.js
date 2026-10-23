@@ -140,8 +140,9 @@ export class QuizRoom extends DurableObject {
         if (!s.answerer) return;
         const o = s.order.find((x) => x.id === s.answerer);
         const nm = o ? o.name : "？";
-        s.scores[nm] = (s.scores[nm] || 0) + 1;
-        s.result = { id: s.answerer, name: nm, ok: true, round: s.round };
+        const pts = Math.min(5, Math.max(1, Math.round(Number(msg.pts) || 1)));
+        s.scores[nm] = (s.scores[nm] || 0) + pts;
+        s.result = { id: s.answerer, name: nm, ok: true, round: s.round, pts };
         s.phase = "closed"; s.answerer = null;
         this.revealNow();
         break;

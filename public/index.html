@@ -73,6 +73,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .pl.out .nm::after{content:" ✕";color:var(--buzz)}
 .judge{display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:center}
 .judge .who{font-family:var(--f-disp);font-size:1.6rem;overflow-wrap:anywhere}
+.pts{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.pts button{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--f-disp);font-size:1.15rem}
+.pts button[aria-checked="true"]{background:var(--gold);border-color:var(--gold);color:#3a2a00}
 /* player buzzer */
 .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding-block:8px}
 .buzzer{width:min(72vw,300px);aspect-ratio:1;max-width:100%;border-radius:50%;border:0;
@@ -171,6 +174,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       <div class="judge" id="hJudge" hidden>
         <div class="sub">解答者</div>
         <div class="who" id="hWho"></div>
+        <div class="pts" role="radiogroup" aria-label="正解のときの得点" id="hPts">
+          <span class="sub">正解で</span>
+          <button type="button" role="radio" data-p="1">1</button>
+          <button type="button" role="radio" data-p="2">2</button>
+          <button type="button" role="radio" data-p="3">3</button>
+          <button type="button" role="radio" data-p="4">4</button>
+          <button type="button" role="radio" data-p="5">5</button>
+          <span class="sub">点</span>
+        </div>
         <div class="row">
           <button class="btn ok" id="hOk">⭕ 正解</button>
           <button class="btn ng" id="hNg">❌ 不正解</button>
@@ -339,7 +351,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
     $("hOpen").onclick = () => { audio(); previewing=null; playFromStart(); send({t:"open"}); };
     $("hNext").onclick = () => { pause(); send({t:"next"}); };
     $("hReveal").onclick = () => { send({t:"reveal"}); };
-    $("hOk").onclick = () => { sCorrect(); send({t:"correct"}); setTimeout(resume, 900); };
+    let pts = Number(store.get("hp.pts")) || 1;
+    const syncPts = () => document.querySelectorAll("#hPts button").forEach(b => b.setAttribute("aria-checked", Number(b.dataset.p)===pts));
+    document.querySelectorAll("#hPts button").forEach(b => b.onclick = () => { pts = Number(b.dataset.p); store.set("hp.pts", pts); syncPts(); });
+    syncPts();
+    $("hOk").onclick = () => { sCorrect(); send({t:"correct", pts}); setTimeout(resume, 900); };
     $("hNg").onclick = () => { const others = S ? S.order.filter(o=>o.id!==S.answerer).length : 0; sWrong(); send({t:"wrong"}); if(!others) setTimeout(resume, 700); };
     $("hSkip").onclick = () => { pause(); send({t:"skip"}); };
     $("hReset").onclick = () => { $("hResetConfirm").hidden=false; };
@@ -416,7 +432,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       const st = $("hState"); st.className="state";
       if(S.phase==="open"){ st.textContent = S.order.length ? "押されました！解答権を渡してください" : "受付中…"; st.classList.add("open"); }
       else if(S.phase==="judging"){ st.textContent = "判定してください"; }
-      else if(S.result && S.result.ok){ st.textContent = "⭕ "+S.result.name+" 正解！"; }
+      else if(S.result && S.result.ok){ st.textContent = "⭕ "+S.result.name+" 正解！ +"+(S.result.pts||1)+"点"; }
       else if(S.result && S.result.shown){ st.textContent = "正解者なし"; }
       else if(n && !t){ st.textContent = "リストの曲はすべて出題しました"; }
       else st.textContent = t ? "スタートで曲が流れます" : "問題を読んでからスタート";
@@ -517,9 +533,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
       const locked = S.locked.includes(myId);
       const r = S.result;
       if(S.answerer===myId){ b.classList.add("mine"); b.disabled=true; b.textContent="解答！"; m.textContent="あなたに解答権！"; m.classList.add("hot"); s.textContent="答えを言ってください"; return; }
-      if(r && r.id===myId && r.round===S.round && S.phase==="closed" && r.ok){ m.textContent="⭕ 正解！"; m.classList.add("ok"); b.disabled=true; return; }
+      if(r && r.id===myId && r.round===S.round && S.phase==="closed" && r.ok){ m.textContent="⭕ 正解！ +"+(r.pts||1)+"点"; m.classList.add("ok"); b.disabled=true; return; }
       if(locked){ m.textContent="❌ この問題はお休み"; m.classList.add("red"); b.disabled=true; return; }
-      if(S.phase==="closed"){ m.textContent = (r && r.ok && r.round===S.round) ? r.name+" さんが正解！" : (r && r.shown) ? "正解者なし" : (S.songCount ? "曲が流れたら押してね" : "問題をよく聞いてね"); b.disabled=true; return; }
+      if(S.phase==="closed"){ m.textContent = (r && r.ok && r.round===S.round) ? r.name+" さんが正解！ +"+(r.pts||1)+"点" : (r && r.shown) ? "正解者なし" : (S.songCount ? "曲が流れたら押してね" : "問題をよく聞いてね"); b.disabled=true; return; }
       if(S.phase==="judging"){ m.textContent="ほかの人が解答中"; b.disabled=true; if(pos>0) s.textContent="あなたは"+(pos+1)+"番目"; return; }
       if(pos>=0){ b.classList.add("pressed"); b.disabled=true; m.textContent=(pos+1)+"番目に押しました"; m.classList.add("red"); s.textContent="解答権を待っています"; return; }
       if(pressedRound===S.round && Date.now()-pressedAt<3000){ setTimeout(render,3000); b.classList.add("pressed"); b.disabled=true; m.textContent="送信中…"; return; }
